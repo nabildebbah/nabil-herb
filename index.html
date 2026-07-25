@@ -5,14 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مذكرة الوصفات والعقدات الطبية</title>
     
-    <!-- Firebase Compatibility SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         :root {
-            /* 🌿 ألوان دافئة تعبر عن الأعشاب والبيئة الطبيعية */
             --bg-gradient: linear-gradient(135deg, #f4f7f2 0%, #eef2eb 50%, #e6ebe3 100%);
             --card-bg: #ffffff;
             --primary-green: #2d5a27;
@@ -20,7 +17,6 @@
             --earth-brown: #6e473b;
             --accent-gold: #c29b38;
             --text-color: #2b2b2b;
-            --text-muted: #666666;
             --border-color: #d8e0d5;
             --danger-red: #d32f2f;
         }
@@ -50,31 +46,6 @@
             box-shadow: 0 0 20px rgba(0,0,0,0.03);
         }
 
-        /* 🔒 شاشة تسجيل الدخول */
-        #auth-screen {
-            padding: 30px 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        .auth-card {
-            background: var(--card-bg);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(45, 90, 39, 0.08);
-            width: 100%;
-            border: 1px solid var(--border-color);
-            text-align: center;
-        }
-
-        .auth-card h2 { color: var(--primary-green); margin-bottom: 5px; }
-
-        /* 📱 الشاشة الرئيسية */
-        #main-app { display: none; flex-direction: column; flex: 1; }
-
         header {
             background: var(--primary-green);
             color: white;
@@ -89,7 +60,6 @@
         }
 
         header h1 { font-size: 18px; margin: 0; }
-        .logout-btn { background: transparent; color: #ffcdd2; border: none; font-size: 13px; cursor: pointer; }
 
         .content { padding: 15px; flex: 1; }
 
@@ -131,27 +101,10 @@
             cursor: pointer;
         }
 
-        /* 🔍 البحث وسجل البحث */
-        .search-container { position: relative; margin-bottom: 15px; }
-        .search-history {
-            display: flex;
-            gap: 6px;
-            overflow-x: auto;
-            padding: 5px 0;
-            margin-top: 5px;
-        }
-        .history-tag {
-            background: var(--light-green);
-            color: var(--primary-green);
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            cursor: pointer;
-            white-space: nowrap;
-            border: 1px solid var(--border-color);
-        }
+        .actions-row { display: flex; gap: 10px; margin-bottom: 15px; }
 
-        /* 🏷️ شريط الأقسام */
+        .search-container { position: relative; margin-bottom: 15px; }
+
         .categories-bar {
             display: flex;
             gap: 8px;
@@ -159,6 +112,7 @@
             padding-bottom: 10px;
             margin-bottom: 15px;
         }
+
         .cat-chip {
             padding: 8px 14px;
             background: var(--card-bg);
@@ -172,11 +126,13 @@
             align-items: center;
             gap: 6px;
         }
+
         .cat-chip.active {
             background: var(--earth-brown);
             color: white;
             border-color: var(--earth-brown);
         }
+
         .delete-cat-btn {
             font-size: 11px;
             color: #ff8a80;
@@ -184,9 +140,7 @@
             border-radius: 50%;
             padding: 0 4px;
         }
-        .delete-cat-btn:hover { background: rgba(0,0,0,0.1); }
 
-        /* 📖 بطاقة الوصفة */
         .recipe-card {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
@@ -210,10 +164,11 @@
 
         .recipe-img {
             width: 100%;
-            max-height: 200px;
+            max-height: 220px;
             object-fit: cover;
             border-radius: 8px;
             margin: 10px 0;
+            border: 1px solid var(--border-color);
         }
 
         .recipe-body { font-size: 13px; color: var(--text-color); margin-top: 8px; line-height: 1.5; }
@@ -235,12 +190,8 @@
             border-radius: 6px;
             font-size: 12px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 4px;
         }
 
-        /* 🪟 Modal */
         .modal {
             display: none;
             position: fixed;
@@ -262,52 +213,36 @@
             overflow-y: auto;
         }
 
-        .actions-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        .upload-box {
+            border: 2px dashed var(--border-color);
+            padding: 12px;
+            border-radius: 10px;
+            background: var(--light-green);
+            text-align: center;
+            margin: 8px 0;
+        }
     </style>
 </head>
 <body>
 
 <div class="app-container">
+    <header>
+        <h1>🌿 مذكرة الوصفات الطبية</h1>
+    </header>
 
-    <!-- 1️⃣ شاشة تسجيل الدخول -->
-    <div id="auth-screen">
-        <div class="auth-card">
-            <h2>🌿 تسجيل الدخول</h2>
-            <p style="font-size: 12px; color: var(--text-muted);">مذكرة الوصفات والعقدات الطبية</p>
-            <input type="email" id="login-email" placeholder="البريد الإلكتروني">
-            <input type="password" id="login-pass" placeholder="كلمة المرور">
-            <button class="btn-main" onclick="handleLogin()">دخول المنصة</button>
+    <div class="content">
+        <div class="search-container">
+            <input type="text" id="search-bar" placeholder="🔍 ابحث عن عشبة، عقدة، أو مكون..." oninput="renderRecipes()">
         </div>
-    </div>
 
-    <!-- 2️⃣ التطبيق الرئيسي -->
-    <div id="main-app">
-        <header>
-            <h1>🌿 دفتر الوصفات والعقدات</h1>
-            <button class="logout-btn" onclick="handleLogout()">خروج</button>
-        </header>
-
-        <div class="content">
-            <!-- البحث وسجل البحث -->
-            <div class="search-container">
-                <input type="text" id="search-bar" placeholder="🔍 ابحث عن عشبة، عقدة، أو مكون..." oninput="onSearchInput()">
-                <div class="search-history" id="search-history-list"></div>
-            </div>
-
-            <!-- أزرار الإضافة -->
-            <div class="actions-row">
-                <button class="btn-main" onclick="openModal('recipe-modal')">➕ إضافة وصفة</button>
-                <button class="btn-secondary" onclick="openModal('cat-modal')">🏷️ إضافة قسم</button>
-            </div>
-
-            <!-- تصفية الأقسام -->
-            <div class="categories-bar" id="categories-bar"></div>
-
-            <!-- قائمة الوصفات -->
-            <div id="recipes-container"></div>
+        <div class="actions-row">
+            <button class="btn-main" onclick="openModal('recipe-modal')">➕ إضافة وصفة</button>
+            <button class="btn-secondary" onclick="openModal('cat-modal')">🏷️ إضافة قسم</button>
         </div>
-    </div>
 
+        <div class="categories-bar" id="categories-bar"></div>
+        <div id="recipes-container"></div>
+    </div>
 </div>
 
 <!-- 🪟 Modal: إضافة وصفة -->
@@ -320,20 +255,14 @@
         <textarea id="recipe-usage" rows="2" placeholder="طريقة التحضير والاستعمال..."></textarea>
         <textarea id="recipe-notes" rows="2" placeholder="تحذيرات أو موانع الاستعمال (اختياري)..."></textarea>
         
-        <!-- 🖼️ قسم البحث السريع عن الصور -->
-        <div style="background: var(--light-green); padding: 10px; border-radius: 10px; margin: 10px 0;">
-            <label style="font-size: 12px; font-weight: bold; color: var(--primary-green);">🔍 جلب صورة العشبة تلقائياً:</label>
-            <div style="display: flex; gap: 5px; margin-top: 5px;">
-                <input type="text" id="image-search-input" placeholder="اكتب اسم العشبة..." style="margin:0;">
-                <button type="button" onclick="searchHerbImages()" style="background: var(--primary-green); color: white; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; white-space: nowrap;">بحث</button>
-            </div>
-            
-            <div id="image-results-grid" style="display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; padding: 5px 0;"></div>
+        <!-- 📸 رفع صورة مباشرة من الجهاز -->
+        <div class="upload-box">
+            <label style="font-size: 13px; font-weight: bold; color: var(--primary-green); display: block; margin-bottom: 5px;">
+                📸 اختر صورة العشبة من جهازك:
+            </label>
+            <input type="file" id="recipe-img-file" accept="image/*" style="margin: 0; padding: 5px;">
         </div>
 
-        <!-- حقل الرابط المخفي -->
-        <input type="hidden" id="recipe-img-url">
-        
         <button class="btn-main" id="save-recipe-btn" onclick="saveRecipe()">حفظ الوصفة</button>
         <button class="btn-secondary" onclick="closeModal('recipe-modal')" style="width:100%; margin-top:5px; background:#888;">إلغاء</button>
     </div>
@@ -350,64 +279,29 @@
 </div>
 
 <script>
-    // ==========================================
-    // ⚙️ FIREBASE CONFIG
-    // ==========================================
-    const firebaseConfig = {
-        apiKey: "AIzaSyCCusLdJr7lAbOXcK0eKEjiWnssV1_WEho",
-        authDomain: "nabil-37b98.firebaseapp.com",
-        databaseURL: "https://nabil-37b98-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "nabil-37b98",
-        storageBucket: "nabil-37b98.firebasestorage.app",
-        messagingSenderId: "489780657035",
-        appId: "1:489780657035:web:7b70908de1a7f3d563cd8e",
-        measurementId: "G-RJEJRWSHFX"
-    };
+    // ⚙️ رابط المشروع تم استخراجه من صورتك:
+    const SUPABASE_URL = "https://ckosqsmzhcvqufhjmiws.supabase.co";
+    // 🔑 انسخ الـ Publishable key وضعه هنا مكان العبارة:
+    const SUPABASE_KEY = "sb_publishable_k8xnF-GQBn7tahacLpY51Q_dEmxCrJ9";
 
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let currentCategory = 'all';
-    let searchHistory = JSON.parse(localStorage.getItem('herb_search_history')) || [];
-    
     const defaultCategories = ['العناية الشخصية', 'أمراض المعدة', 'التوابل والزيوت'];
-    let customCategories = []; 
+    let customCategories = [];
     let recipes = [];
 
-    // 1️⃣ إدارة تسجيل الدخول
-    auth.onAuthStateChanged(user => {
-        if (user) {
-            document.getElementById('auth-screen').style.display = 'none';
-            document.getElementById('main-app').style.display = 'flex';
-            loadCategories();
-            loadRecipes();
-            renderSearchHistory();
-        } else {
-            document.getElementById('auth-screen').style.display = 'flex';
-            document.getElementById('main-app').style.display = 'none';
+    window.onload = () => {
+        loadCategories();
+        loadRecipes();
+    };
+
+    async function loadCategories() {
+        const { data, error } = await supabase.from('categories').select('*').order('id', { ascending: true });
+        if (!error && data) {
+            customCategories = data;
         }
-    });
-
-    function handleLogin() {
-        const email = document.getElementById('login-email').value;
-        const pass = document.getElementById('login-pass').value;
-        if (!email || !pass) return alert("يرجى كتابة البريد وكلمة المرور!");
-
-        auth.signInWithEmailAndPassword(email, pass).catch(err => alert("خطأ في الدخول: " + err.message));
-    }
-
-    function handleLogout() { auth.signOut(); }
-
-    // 2️⃣ إدارة الأقسام
-    function loadCategories() {
-        db.collection('categories').onSnapshot(snapshot => {
-            customCategories = snapshot.docs.map(doc => ({
-                id: doc.id,
-                name: doc.data().name
-            }));
-            renderCategories();
-        });
+        renderCategories();
     }
 
     function renderCategories() {
@@ -427,32 +321,35 @@
             bar.innerHTML += `
                 <div class="cat-chip ${isActive}" onclick="filterCat('${catObj.name}')">
                     <span>${catObj.name}</span>
-                    <span class="delete-cat-btn" onclick="deleteCategory(event, '${catObj.id}', '${catObj.name}')" title="حذف القسم">✕</span>
+                    <span class="delete-cat-btn" onclick="deleteCategory(event, ${catObj.id}, '${catObj.name}')" title="حذف">✕</span>
                 </div>
             `;
             select.innerHTML += `<option value="${catObj.name}">${catObj.name}</option>`;
         });
     }
 
-    function saveCategory() {
+    async function saveCategory() {
         const name = document.getElementById('new-cat-name').value.trim();
         if (!name) return alert("يرجى كتابة اسم القسم!");
 
-        db.collection('categories').add({
-            name: name,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        }).then(() => {
+        const { error } = await supabase.from('categories').insert([{ name }]);
+        if (error) {
+            alert("خطأ أثناء حفظ القسم: " + error.message);
+        } else {
             closeModal('cat-modal');
             document.getElementById('new-cat-name').value = '';
-        }).catch(err => alert("خطأ أثناء حفظ القسم: " + err.message));
+            loadCategories();
+        }
     }
 
-    function deleteCategory(event, catId, catName) {
+    async function deleteCategory(event, catId, catName) {
         event.stopPropagation();
         if (confirm(`هل أنت تأكد من حذف قسم "${catName}"؟`)) {
-            db.collection('categories').doc(catId).delete().then(() => {
+            const { error } = await supabase.from('categories').delete().eq('id', catId);
+            if (!error) {
                 if (currentCategory === catName) currentCategory = 'all';
-            }).catch(err => alert("خطأ في الحذف: " + err.message));
+                loadCategories();
+            }
         }
     }
 
@@ -462,125 +359,78 @@
         renderRecipes();
     }
 
-    // 3️⃣ البحث عن الصور عبر Wikipedia API (مضمون وسريع بدون أخطاء CORS)
-    async function searchHerbImages() {
-        const query = document.getElementById('image-search-input').value.trim();
-        const grid = document.getElementById('image-results-grid');
-        
-        if (!query) return alert("اكتب اسم العشبة للبحث عن صورتها!");
-
-        grid.innerHTML = '<span style="font-size:12px; color:#666;">جاري البحث عن الصور...</span>';
-
-        try {
-            // البحث في ويكيبيديا العربية أولاً
-            let url = `https://ar.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=5&prop=pageimages&piprop=thumbnail&pithumbsize=300&format=json&origin=*`;
-            let res = await fetch(url);
-            let data = await res.json();
-            
-            let images = [];
-
-            if (data.query && data.query.pages) {
-                Object.values(data.query.pages).forEach(p => {
-                    if (p.thumbnail && p.thumbnail.source) images.push(p.thumbnail.source);
-                });
-            }
-
-            // إذا لم نجد نتائج بالبحث العربي، نبحث في النسخة الإنجليزية
-            if (images.length === 0) {
-                url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=5&prop=pageimages&piprop=thumbnail&pithumbsize=300&format=json&origin=*`;
-                res = await fetch(url);
-                data = await res.json();
-
-                if (data.query && data.query.pages) {
-                    Object.values(data.query.pages).forEach(p => {
-                        if (p.thumbnail && p.thumbnail.source) images.push(p.thumbnail.source);
-                    });
-                }
-            }
-
-            grid.innerHTML = '';
-
-            if (images.length > 0) {
-                images.forEach(src => {
-                    const imgEl = document.createElement('img');
-                    imgEl.src = src;
-                    imgEl.style.cssText = 'width: 80px; height: 80px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0;';
-                    
-                    imgEl.onclick = function() {
-                        Array.from(grid.children).forEach(child => child.style.borderColor = 'transparent');
-                        this.style.borderColor = 'var(--primary-green)';
-                        document.getElementById('recipe-img-url').value = this.src;
-                    };
-                    
-                    grid.appendChild(imgEl);
-                });
-            } else {
-                grid.innerHTML = '<span style="font-size:12px; color:#777;">لم نجد صوراً لهذه العشبة. جرب كتابة الاسم بالإنجليزية (مثال: Mint).</span>';
-            }
-
-        } catch (err) {
-            console.error(err);
-            grid.innerHTML = '<span style="font-size:12px; color:red;">تعذر جلب الصور، يرجى المحاولة مرة أخرى.</span>';
-        }
-    }
-
-    // 4️⃣ إدارة الوصفات
-    function loadRecipes() {
-        db.collection('recipes').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
-            recipes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            renderRecipes();
-        });
-    }
-
     async function saveRecipe() {
         const cat = document.getElementById('recipe-cat-select').value;
         const title = document.getElementById('recipe-title').value.trim();
         const ingredients = document.getElementById('recipe-ingredients').value.trim();
         const usage = document.getElementById('recipe-usage').value.trim();
         const notes = document.getElementById('recipe-notes').value.trim();
-        const imageUrl = document.getElementById('recipe-img-url').value.trim();
+        const fileInput = document.getElementById('recipe-img-file');
         const saveBtn = document.getElementById('save-recipe-btn');
 
         if (!cat || !title || !ingredients) {
-            return alert("يرجى اختيار القسم، وكتابة العنوان والمكونات على الأقل!");
+            return alert("يرجى اختيار القسم، وكتابة العنوان والمكونات!");
         }
 
-        saveBtn.innerText = "جاري الحفظ...";
+        saveBtn.innerText = "جاري الحفظ والرفع...";
         saveBtn.disabled = true;
 
-        try {
-            await db.collection('recipes').add({
-                category: cat,
-                title: title,
-                ingredients: ingredients,
-                usage: usage,
-                notes: notes,
-                imageUrl: imageUrl,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+        let imageUrl = '';
 
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}.${fileExt}`;
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('herb-images')
+                .upload(fileName, file);
+
+            if (uploadError) {
+                alert("تعذر رفع الصورة: " + uploadError.message);
+                saveBtn.innerText = "حفظ الوصفة";
+                saveBtn.disabled = false;
+                return;
+            }
+
+            const { data: publicUrlData } = supabase.storage
+                .from('herb-images')
+                .getPublicUrl(fileName);
+
+            imageUrl = publicUrlData.publicUrl;
+        }
+
+        const { error } = await supabase.from('recipes').insert([{
+            category: cat,
+            title: title,
+            ingredients: ingredients,
+            usage: usage,
+            notes: notes,
+            image_url: imageUrl
+        }]);
+
+        if (error) {
+            alert("حدث خطأ أثناء الحفظ: " + error.message);
+        } else {
             alert("تم حفظ الوصفة بنجاح! 🌿");
-
             closeModal('recipe-modal');
             document.getElementById('recipe-title').value = '';
             document.getElementById('recipe-ingredients').value = '';
             document.getElementById('recipe-usage').value = '';
             document.getElementById('recipe-notes').value = '';
-            document.getElementById('recipe-img-url').value = '';
-            document.getElementById('image-results-grid').innerHTML = '';
-
-        } catch (error) {
-            console.error("خطأ أثناء الحفظ:", error);
-            alert("حدث خطأ أثناء الحفظ: " + error.message);
-        } finally {
-            saveBtn.innerText = "حفظ الوصفة";
-            saveBtn.disabled = false;
+            fileInput.value = '';
+            loadRecipes();
         }
+
+        saveBtn.innerText = "حفظ الوصفة";
+        saveBtn.disabled = false;
     }
 
-    function deleteRecipe(id, title) {
-        if (confirm(`هل أنت تأكد من حذف وصفة "${title}"؟`)) {
-            db.collection('recipes').doc(id).delete().catch(err => alert("خطأ في الحذف: " + err.message));
+    async function loadRecipes() {
+        const { data, error } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
+        if (!error && data) {
+            recipes = data;
+            renderRecipes();
         }
     }
 
@@ -610,7 +460,7 @@
                         <h3 class="recipe-title">${r.title}</h3>
                         <span class="recipe-cat-badge">${r.category}</span>
                     </div>
-                    ${r.imageUrl ? `<img src="${r.imageUrl}" class="recipe-img">` : ''}
+                    ${r.image_url ? `<img src="${r.image_url}" class="recipe-img">` : ''}
                     <div class="recipe-body">
                         <strong>🌿 المكونات:</strong> ${r.ingredients}
                     </div>
@@ -618,7 +468,7 @@
                     ${r.notes ? `<div class="recipe-notes">⚠️ <strong>ملاحظات:</strong> ${r.notes}</div>` : ''}
                     
                     <div class="recipe-footer">
-                        <button class="btn-delete-recipe" onclick="deleteRecipe('${r.id}', '${r.title}')">
+                        <button class="btn-delete-recipe" onclick="deleteRecipe(${r.id}, '${r.title}')">
                             🗑️ حذف الوصفة
                         </button>
                     </div>
@@ -627,34 +477,11 @@
         });
     }
 
-    // 5️⃣ سجل البحث
-    function onSearchInput() {
-        const val = document.getElementById('search-bar').value.trim();
-        renderRecipes();
-        if (val.length > 3) {
-            clearTimeout(window.searchTimer);
-            window.searchTimer = setTimeout(() => {
-                if (!searchHistory.includes(val)) {
-                    searchHistory.unshift(val);
-                    if (searchHistory.length > 5) searchHistory.pop();
-                    localStorage.setItem('herb_search_history', JSON.stringify(searchHistory));
-                    renderSearchHistory();
-                }
-            }, 1500);
+    async function deleteRecipe(id, title) {
+        if (confirm(`هل أنت تأكد من حذف وصفة "${title}"؟`)) {
+            const { error } = await supabase.from('recipes').delete().eq('id', id);
+            if (!error) loadRecipes();
         }
-    }
-
-    function renderSearchHistory() {
-        const container = document.getElementById('search-history-list');
-        container.innerHTML = '';
-        searchHistory.forEach(term => {
-            container.innerHTML += `<span class="history-tag" onclick="applyHistorySearch('${term}')">${term}</span>`;
-        });
-    }
-
-    function applyHistorySearch(term) {
-        document.getElementById('search-bar').value = term;
-        renderRecipes();
     }
 
     function openModal(id) { document.getElementById(id).style.display = 'flex'; }
