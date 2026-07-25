@@ -320,11 +320,11 @@
         <textarea id="recipe-usage" rows="2" placeholder="طريقة التحضير والاستعمال..."></textarea>
         <textarea id="recipe-notes" rows="2" placeholder="تحذيرات أو موانع الاستعمال (اختياري)..."></textarea>
         
-        <!-- 🖼️ قسم البحث السريع عن صور Google -->
+        <!-- 🖼️ قسم البحث السريع عن الصور -->
         <div style="background: var(--light-green); padding: 10px; border-radius: 10px; margin: 10px 0;">
-            <label style="font-size: 12px; font-weight: bold; color: var(--primary-green);">🔍 جلب صورة العشبة من Google:</label>
+            <label style="font-size: 12px; font-weight: bold; color: var(--primary-green);">🔍 جلب صورة العشبة تلقائياً:</label>
             <div style="display: flex; gap: 5px; margin-top: 5px;">
-                <input type="text" id="image-search-input" placeholder="اكتب اسم العشبة للبحث..." style="margin:0;">
+                <input type="text" id="image-search-input" placeholder="اكتب اسم العشبة..." style="margin:0;">
                 <button type="button" onclick="searchHerbImages()" style="background: var(--primary-green); color: white; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; white-space: nowrap;">بحث</button>
             </div>
             
@@ -351,28 +351,22 @@
 
 <script>
     // ==========================================
-    // ⚙️ FIREBASE CONFIG (استبدل القيم التالية بقيم حسابك)
+    // ⚙️ FIREBASE CONFIG
     // ==========================================
     const firebaseConfig = {
-  apiKey: "AIzaSyCCusLdJr7lAbOXcK0eKEjiWnssV1_WEho",
-  authDomain: "nabil-37b98.firebaseapp.com",
-  databaseURL: "https://nabil-37b98-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "nabil-37b98",
-  storageBucket: "nabil-37b98.firebasestorage.app",
-  messagingSenderId: "489780657035",
-  appId: "1:489780657035:web:7b70908de1a7f3d563cd8e",
-  measurementId: "G-RJEJRWSHFX"
-};
+        apiKey: "AIzaSyCCusLdJr7lAbOXcK0eKEjiWnssV1_WEho",
+        authDomain: "nabil-37b98.firebaseapp.com",
+        databaseURL: "https://nabil-37b98-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "nabil-37b98",
+        storageBucket: "nabil-37b98.firebasestorage.app",
+        messagingSenderId: "489780657035",
+        appId: "1:489780657035:web:7b70908de1a7f3d563cd8e",
+        measurementId: "G-RJEJRWSHFX"
+    };
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
-
-    // ==========================================
-    // 🔍 GOOGLE CUSTOM SEARCH CONFIG (المفاتيح الخاصة بك)
-    // ==========================================
-    const GOOGLE_API_KEY = "AIzaSyCR9iOgkcC361Vz5v_INdTTWMBL2oN9AjQ";
-    const GOOGLE_CX = "064783bd230904ccd";
 
     let currentCategory = 'all';
     let searchHistory = JSON.parse(localStorage.getItem('herb_search_history')) || [];
@@ -468,35 +462,49 @@
         renderRecipes();
     }
 
-    // 3️⃣ البحث المباشر في صور Google
-// 🖼️ دالة البحث عن الصور باستخدام Wikimedia (مفتوحة ومجانية 100% بدون مفاتيح)
-async function searchHerbImages() {
-    const query = document.getElementById('image-search-input').value.trim();
-    const grid = document.getElementById('image-results-grid');
-    
-    if (!query) return alert("اكتب اسم العشبة للبحث عن صورتها!");
-
-    grid.innerHTML = '<span style="font-size:12px; color:#666;">جاري جلب الصور...</span>';
-
-    try {
-        // طلب الصور من مكتبة ويكيمديا المفتوحة
-        const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gtsearch=${encodeURIComponent(query)}&gtnamespace=6&prop=pageimages&pithumbsize=250&format=json&origin=*`;
+    // 3️⃣ البحث عن الصور عبر Wikipedia API (مضمون وسريع بدون أخطاء CORS)
+    async function searchHerbImages() {
+        const query = document.getElementById('image-search-input').value.trim();
+        const grid = document.getElementById('image-results-grid');
         
-        const res = await fetch(url);
-        const data = await res.json();
-        
-        grid.innerHTML = '';
+        if (!query) return alert("اكتب اسم العشبة للبحث عن صورتها!");
 
-        if (data.query && data.query.pages) {
-            const pages = Object.values(data.query.pages);
-            let foundImages = 0;
+        grid.innerHTML = '<span style="font-size:12px; color:#666;">جاري البحث عن الصور...</span>';
 
-            pages.forEach(page => {
-                if (page.thumbnail && page.thumbnail.source && foundImages < 4) {
-                    foundImages++;
+        try {
+            // البحث في ويكيبيديا العربية أولاً
+            let url = `https://ar.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=5&prop=pageimages&piprop=thumbnail&pithumbsize=300&format=json&origin=*`;
+            let res = await fetch(url);
+            let data = await res.json();
+            
+            let images = [];
+
+            if (data.query && data.query.pages) {
+                Object.values(data.query.pages).forEach(p => {
+                    if (p.thumbnail && p.thumbnail.source) images.push(p.thumbnail.source);
+                });
+            }
+
+            // إذا لم نجد نتائج بالبحث العربي، نبحث في النسخة الإنجليزية
+            if (images.length === 0) {
+                url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=5&prop=pageimages&piprop=thumbnail&pithumbsize=300&format=json&origin=*`;
+                res = await fetch(url);
+                data = await res.json();
+
+                if (data.query && data.query.pages) {
+                    Object.values(data.query.pages).forEach(p => {
+                        if (p.thumbnail && p.thumbnail.source) images.push(p.thumbnail.source);
+                    });
+                }
+            }
+
+            grid.innerHTML = '';
+
+            if (images.length > 0) {
+                images.forEach(src => {
                     const imgEl = document.createElement('img');
-                    imgEl.src = page.thumbnail.source;
-                    imgEl.style.cssText = 'width: 75px; height: 75px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0;';
+                    imgEl.src = src;
+                    imgEl.style.cssText = 'width: 80px; height: 80px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0;';
                     
                     imgEl.onclick = function() {
                         Array.from(grid.children).forEach(child => child.style.borderColor = 'transparent');
@@ -505,21 +513,16 @@ async function searchHerbImages() {
                     };
                     
                     grid.appendChild(imgEl);
-                }
-            });
-
-            if (foundImages === 0) {
-                grid.innerHTML = '<span style="font-size:12px; color:#777;">لم يتم العثور على صور. جرب كتابة الاسم بالإنجليزية (مثال: Mint).</span>';
+                });
+            } else {
+                grid.innerHTML = '<span style="font-size:12px; color:#777;">لم نجد صوراً لهذه العشبة. جرب كتابة الاسم بالإنجليزية (مثال: Mint).</span>';
             }
-        } else {
-            grid.innerHTML = '<span style="font-size:12px; color:#777;">لم يتم العثور على صور لهذه العشبة.</span>';
-        }
 
-    } catch (err) {
-        console.error(err);
-        grid.innerHTML = '<span style="font-size:12px; color:red;">خطأ في جلب الصور.</span>';
+        } catch (err) {
+            console.error(err);
+            grid.innerHTML = '<span style="font-size:12px; color:red;">تعذر جلب الصور، يرجى المحاولة مرة أخرى.</span>';
+        }
     }
-}
 
     // 4️⃣ إدارة الوصفات
     function loadRecipes() {
