@@ -320,11 +320,11 @@
         <textarea id="recipe-usage" rows="2" placeholder="طريقة التحضير والاستعمال..."></textarea>
         <textarea id="recipe-notes" rows="2" placeholder="تحذيرات أو موانع الاستعمال (اختياري)..."></textarea>
         
-        <!-- 🖼️ قسم البحث السريع عن الصور -->
+        <!-- 🖼️ قسم البحث السريع عن صور Google -->
         <div style="background: var(--light-green); padding: 10px; border-radius: 10px; margin: 10px 0;">
-            <label style="font-size: 12px; font-weight: bold; color: var(--primary-green);">🔍 جلب صورة العشبة تلقائياً:</label>
+            <label style="font-size: 12px; font-weight: bold; color: var(--primary-green);">🔍 جلب صورة العشبة من Google:</label>
             <div style="display: flex; gap: 5px; margin-top: 5px;">
-                <input type="text" id="image-search-input" placeholder="اكتب اسم العشبة (مثل: mint, chamomile)..." style="margin:0;">
+                <input type="text" id="image-search-input" placeholder="اكتب اسم العشبة للبحث..." style="margin:0;">
                 <button type="button" onclick="searchHerbImages()" style="background: var(--primary-green); color: white; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; white-space: nowrap;">بحث</button>
             </div>
             
@@ -351,7 +351,7 @@
 
 <script>
     // ==========================================
-    // ⚙️ FIREBASE CONFIG (ضع مفاتيحك الخاصة هنا)
+    // ⚙️ FIREBASE CONFIG (استبدل القيم التالية بقيم حسابك)
     // ==========================================
     const firebaseConfig = {
   apiKey: "AIzaSyCCusLdJr7lAbOXcK0eKEjiWnssV1_WEho",
@@ -367,6 +367,12 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
+
+    // ==========================================
+    // 🔍 GOOGLE CUSTOM SEARCH CONFIG (المفاتيح الخاصة بك)
+    // ==========================================
+    const GOOGLE_API_KEY = "AIzaSyCR9iOgkcC361Vz5v_INdTTWMBL2oN9AjQ";
+    const GOOGLE_CX = "064783bd230904ccd";
 
     let currentCategory = 'all';
     let searchHistory = JSON.parse(localStorage.getItem('herb_search_history')) || [];
@@ -462,85 +468,46 @@
         renderRecipes();
     }
 
-    // 3️⃣ البحث السريع عن الصور
-// 🔍 البحث السريع عن صور الأعشاب وتوليد روابط مباشرة شغال 100%
-async function searchHerbImages() {
-    const query = document.getElementById('image-search-input').value.trim();
-    const grid = document.getElementById('image-results-grid');
-    
-    if (!query) return alert("اكتب اسم العشبة للبحث عن صورتها!");
-
-    grid.innerHTML = '<span style="font-size:12px; color:#666;">جاري جلب الصور...</span>';
-
-    try {
-        // البحث عن صور الأعشاب عبر API ويكيبيديا المفتوح والمجاني (دقيق جداً مع النباتات)
-        const wikiApiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gteisearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=5&prop=imageinfo&iiprop=url&format=json&origin=*`;
+    // 3️⃣ البحث المباشر في صور Google
+    async function searchHerbImages() {
+        const query = document.getElementById('image-search-input').value.trim();
+        const grid = document.getElementById('image-results-grid');
         
-        const res = await fetch(wikiApiUrl);
-        const data = await res.json();
-        
-        grid.innerHTML = '';
+        if (!query) return alert("اكتب اسم العشبة للبحث عن صورتها!");
 
-        if (data.query && data.query.pages) {
-            const pages = Object.values(data.query.pages);
+        grid.innerHTML = '<span style="font-size:12px; color:#666;">جاري البحث في صور Google...</span>';
+
+        try {
+            const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&cx=${GOOGLE_CX}&key=${GOOGLE_API_KEY}&searchType=image&num=4`;
             
-            pages.forEach(page => {
-                if (page.imageinfo && page.imageinfo[0]) {
-                    const imgUrl = page.imageinfo[0].url;
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            grid.innerHTML = '';
+
+            if (data.items && data.items.length > 0) {
+                data.items.forEach(item => {
+                    const imgEl = document.createElement('img');
+                    imgEl.src = item.link;
+                    imgEl.style.cssText = 'width: 75px; height: 75px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0;';
                     
-                    // استبعاد ملفات PDF أو الصوت إن وجدت
-                    if (imgUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
-                        const imgEl = document.createElement('img');
-                        imgEl.src = imgUrl;
-                        imgEl.style.cssText = 'width: 75px; height: 75px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0;';
-                        
-                        // عند اختيار الصورة
-                        imgEl.onclick = function() {
-                            Array.from(grid.children).forEach(child => child.style.borderColor = 'transparent');
-                            this.style.borderColor = 'var(--primary-green)';
-                            document.getElementById('recipe-img-url').value = this.src;
-                        };
-                        
-                        grid.appendChild(imgEl);
-                    }
-                }
-            });
-        }
+                    imgEl.onclick = function() {
+                        Array.from(grid.children).forEach(child => child.style.borderColor = 'transparent');
+                        this.style.borderColor = 'var(--primary-green)';
+                        document.getElementById('recipe-img-url').value = this.src;
+                    };
+                    
+                    grid.appendChild(imgEl);
+                });
+            } else {
+                grid.innerHTML = '<span style="font-size:12px; color:#777;">لم يتم العثور على صور.</span>';
+            }
 
-        // إذا لم يجد صور في ويكيبيديا، نستخدم الخيار الاحتياطي المباشر
-        if (grid.children.length === 0) {
-            useFallbackImages(query, grid);
+        } catch (err) {
+            console.error(err);
+            grid.innerHTML = '<span style="font-size:12px; color:red;">خطأ في جلب الصور من Google.</span>';
         }
-
-    } catch (err) {
-        useFallbackImages(query, grid);
     }
-}
-
-// خيار احتياطي في حال عدم استجابة السيرفر الأول
-function useFallbackImages(query, grid) {
-    grid.innerHTML = '';
-    // قائمة روابط صور نباتات عالية الجودة جاهزة
-    const fallbackUrls = [
-        `https://images.pexels.com/photos/161556/herb-tea-leaves-mint-161556.jpeg?auto=compress&cs=tinysrgb&w=300`,
-        `https://images.pexels.com/photos/1083895/pexels-photo-1083895.jpeg?auto=compress&cs=tinysrgb&w=300`,
-        `https://images.pexels.com/photos/4050885/pexels-photo-4050885.jpeg?auto=compress&cs=tinysrgb&w=300`,
-        `https://images.pexels.com/photos/4198370/pexels-photo-4198370.jpeg?auto=compress&cs=tinysrgb&w=300`
-    ];
-
-    fallbackUrls.forEach(url => {
-        const imgEl = document.createElement('img');
-        imgEl.src = url;
-        imgEl.style.cssText = 'width: 75px; height: 75px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0;';
-        
-        imgEl.onclick = function() {
-            Array.from(grid.children).forEach(child => child.style.borderColor = 'transparent');
-            this.style.borderColor = 'var(--primary-green)';
-            document.getElementById('recipe-img-url').value = this.src;
-        };
-        grid.appendChild(imgEl);
-    });
-}
 
     // 4️⃣ إدارة الوصفات
     function loadRecipes() {
