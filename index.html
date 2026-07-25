@@ -469,26 +469,33 @@
     }
 
     // 3️⃣ البحث المباشر في صور Google
-    async function searchHerbImages() {
-        const query = document.getElementById('image-search-input').value.trim();
-        const grid = document.getElementById('image-results-grid');
+// 🖼️ دالة البحث عن الصور باستخدام Wikimedia (مفتوحة ومجانية 100% بدون مفاتيح)
+async function searchHerbImages() {
+    const query = document.getElementById('image-search-input').value.trim();
+    const grid = document.getElementById('image-results-grid');
+    
+    if (!query) return alert("اكتب اسم العشبة للبحث عن صورتها!");
+
+    grid.innerHTML = '<span style="font-size:12px; color:#666;">جاري جلب الصور...</span>';
+
+    try {
+        // طلب الصور من مكتبة ويكيمديا المفتوحة
+        const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gtsearch=${encodeURIComponent(query)}&gtnamespace=6&prop=pageimages&pithumbsize=250&format=json&origin=*`;
         
-        if (!query) return alert("اكتب اسم العشبة للبحث عن صورتها!");
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        grid.innerHTML = '';
 
-        grid.innerHTML = '<span style="font-size:12px; color:#666;">جاري البحث في صور Google...</span>';
+        if (data.query && data.query.pages) {
+            const pages = Object.values(data.query.pages);
+            let foundImages = 0;
 
-        try {
-            const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&cx=${GOOGLE_CX}&key=${GOOGLE_API_KEY}&searchType=image&num=4`;
-            
-            const res = await fetch(url);
-            const data = await res.json();
-            
-            grid.innerHTML = '';
-
-            if (data.items && data.items.length > 0) {
-                data.items.forEach(item => {
+            pages.forEach(page => {
+                if (page.thumbnail && page.thumbnail.source && foundImages < 4) {
+                    foundImages++;
                     const imgEl = document.createElement('img');
-                    imgEl.src = item.link;
+                    imgEl.src = page.thumbnail.source;
                     imgEl.style.cssText = 'width: 75px; height: 75px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent; flex-shrink: 0;';
                     
                     imgEl.onclick = function() {
@@ -498,16 +505,21 @@
                     };
                     
                     grid.appendChild(imgEl);
-                });
-            } else {
-                grid.innerHTML = '<span style="font-size:12px; color:#777;">لم يتم العثور على صور.</span>';
-            }
+                }
+            });
 
-        } catch (err) {
-            console.error(err);
-            grid.innerHTML = '<span style="font-size:12px; color:red;">خطأ في جلب الصور من Google.</span>';
+            if (foundImages === 0) {
+                grid.innerHTML = '<span style="font-size:12px; color:#777;">لم يتم العثور على صور. جرب كتابة الاسم بالإنجليزية (مثال: Mint).</span>';
+            }
+        } else {
+            grid.innerHTML = '<span style="font-size:12px; color:#777;">لم يتم العثور على صور لهذه العشبة.</span>';
         }
+
+    } catch (err) {
+        console.error(err);
+        grid.innerHTML = '<span style="font-size:12px; color:red;">خطأ في جلب الصور.</span>';
     }
+}
 
     // 4️⃣ إدارة الوصفات
     function loadRecipes() {
