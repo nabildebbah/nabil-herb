@@ -465,29 +465,40 @@
         });
     }
 
-    async function saveRecipe() {
-        const cat = document.getElementById('recipe-cat-select').value;
-        const title = document.getElementById('recipe-title').value.trim();
-        const ingredients = document.getElementById('recipe-ingredients').value.trim();
-        const usage = document.getElementById('recipe-usage').value.trim();
-        const notes = document.getElementById('recipe-notes').value.trim();
-        const fileInput = document.getElementById('recipe-img-file');
-        const saveBtn = document.getElementById('save-recipe-btn');
+async function saveRecipe() {
+    const cat = document.getElementById('recipe-cat-select').value;
+    const title = document.getElementById('recipe-title').value.trim();
+    const ingredients = document.getElementById('recipe-ingredients').value.trim();
+    const usage = document.getElementById('recipe-usage').value.trim();
+    const notes = document.getElementById('recipe-notes').value.trim();
+    const fileInput = document.getElementById('recipe-img-file');
+    const saveBtn = document.getElementById('save-recipe-btn');
 
-        if (!cat || !title || !ingredients) return alert("يرجى ملء كافة الحقول الأساسية!");
+    if (!cat || !title || !ingredients) {
+        return alert("يرجى اختيار القسم، وكتابة العنوان والمكونات على الأقل!");
+    }
 
-        saveBtn.innerText = "جاري الحفظ والرفع...";
-        saveBtn.disabled = true;
+    saveBtn.innerText = "جاري الحفظ...";
+    saveBtn.disabled = true;
 
-        let imageUrl = "";
+    let imageUrl = "";
 
-        if (fileInput.files.length > 0) {
+    try {
+        // إذا قام المستخدم باختيار صورة، نرفعها إلى Storage
+        if (fileInput.files && fileInput.files[0]) {
+            saveBtn.innerText = "جاري رفع الصورة...";
             const file = fileInput.files[0];
             const fileRef = storage.ref(`recipes/${Date.now()}_${file.name}`);
-            await fileRef.put(file);
-            imageUrl = await fileRef.getDownloadURL();
+            
+            // رفع الملف
+            const snapshot = await fileRef.put(file);
+            // الحصول على رابط الصورة
+            imageUrl = await snapshot.ref.getDownloadURL();
         }
 
+        saveBtn.innerText = "جاري حفظ البيانات...";
+
+        // حفظ البيانات في Firestore
         await db.collection('recipes').add({
             category: cat,
             title: title,
@@ -498,16 +509,24 @@
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        saveBtn.innerText = "حفظ الوصفة";
-        saveBtn.disabled = false;
+        alert("تم حفظ الوصفة بنجاح! 🌿");
 
+        // إغلاق وتفريغ النموذج
         closeModal('recipe-modal');
         document.getElementById('recipe-title').value = '';
         document.getElementById('recipe-ingredients').value = '';
         document.getElementById('recipe-usage').value = '';
         document.getElementById('recipe-notes').value = '';
         fileInput.value = '';
+
+    } catch (error) {
+        console.error("خطأ أثناء الحفظ:", error);
+        alert("حدث خطأ أثناء الحفظ: " + error.message);
+    } finally {
+        saveBtn.innerText = "حفظ الوصفة";
+        saveBtn.disabled = false;
     }
+}
 
     // 🗑️ حذف الوصفة
     function deleteRecipe(id, title) {
