@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مذكرة الوصفات والعقدات الطبية</title>
+    <title>مذكرة الوصفات الطبية</title>
     
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -59,7 +59,17 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
-        header h1 { font-size: 18px; margin: 0; }
+        header h1 { font-size: 16px; margin: 0; }
+
+        .btn-logout {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.4);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
 
         .content { padding: 15px; flex: 1; }
 
@@ -99,6 +109,17 @@
             border-radius: 8px;
             font-size: 13px;
             cursor: pointer;
+        }
+
+        /* شاشة تسجيل الدخول */
+        #auth-container {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            margin-top: 30px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         }
 
         .actions-row { display: flex; gap: 10px; margin-bottom: 15px; }
@@ -228,20 +249,34 @@
 <div class="app-container">
     <header>
         <h1>🌿 مذكرة الوصفات الطبية</h1>
+        <button id="logout-btn" class="btn-logout" onclick="handleLogout()" style="display: none;">تسجيل الخروج 🚪</button>
     </header>
 
     <div class="content">
-        <div class="search-container">
-            <input type="text" id="search-bar" placeholder="🔍 ابحث عن عشبة، عقدة، أو مكون..." oninput="renderRecipes()">
+        <!-- 🔑 واجهة تسجيل الدخول -->
+        <div id="auth-container">
+            <h3 style="color: var(--primary-green); margin-top:0; text-align:center;">تسجيل الدخول / حساب جديد</h3>
+            <p style="font-size: 12px; color: #666; margin-bottom: 15px; text-align:center;">ادخل بريدك وكلمة السر لإدارة المذكرة</p>
+            <input type="email" id="auth-email" placeholder="البريد الإلكتروني">
+            <input type="password" id="auth-password" placeholder="كلمة المرور">
+            <button class="btn-main" onclick="handleLogin()">تسجيل الدخول</button>
+            <button class="btn-secondary" onclick="handleSignUp()" style="width: 100%; margin-top: 8px;">إنشاء حساب جديد</button>
         </div>
 
-        <div class="actions-row">
-            <button class="btn-main" onclick="openModal('recipe-modal')">➕ إضافة وصفة</button>
-            <button class="btn-secondary" onclick="openModal('cat-modal')">🏷️ إضافة قسم</button>
-        </div>
+        <!-- 🌿 واجهة التطبيق الرئيسي -->
+        <div id="main-app" style="display: none;">
+            <div class="search-container">
+                <input type="text" id="search-bar" placeholder="🔍 ابحث عن عشبة، عقدة، أو مكون..." oninput="renderRecipes()">
+            </div>
 
-        <div class="categories-bar" id="categories-bar"></div>
-        <div id="recipes-container"></div>
+            <div class="actions-row">
+                <button class="btn-main" onclick="openModal('recipe-modal')">➕ إضافة وصفة</button>
+                <button class="btn-secondary" onclick="openModal('cat-modal')">🏷️ إضافة قسم</button>
+            </div>
+
+            <div class="categories-bar" id="categories-bar"></div>
+            <div id="recipes-container"></div>
+        </div>
     </div>
 </div>
 
@@ -255,7 +290,6 @@
         <textarea id="recipe-usage" rows="2" placeholder="طريقة التحضير والاستعمال..."></textarea>
         <textarea id="recipe-notes" rows="2" placeholder="تحذيرات أو موانع الاستعمال (اختياري)..."></textarea>
         
-        <!-- 📸 رفع صورة مباشرة من الجهاز -->
         <div class="upload-box">
             <label style="font-size: 13px; font-weight: bold; color: var(--primary-green); display: block; margin-bottom: 5px;">
                 📸 اختر صورة العشبة من جهازك:
@@ -279,9 +313,7 @@
 </div>
 
 <script>
-    // ⚙️ رابط المشروع تم استخراجه من صورتك:
     const SUPABASE_URL = "https://ckosqsmzhcvqufhjmiws.supabase.co";
-    // 🔑 انسخ الـ Publishable key وضعه هنا مكان العبارة:
     const SUPABASE_KEY = "sb_publishable_k8xnF-GQBn7tahacLpY51Q_dEmxCrJ9";
 
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -291,13 +323,73 @@
     let customCategories = [];
     let recipes = [];
 
-    window.onload = () => {
-        loadCategories();
-        loadRecipes();
+    // التحقق فور تحميل الصفحة
+    window.onload = async () => {
+        try {
+            const { data: { session } } = await db.auth.getSession();
+            if (session) {
+                showApp();
+            } else {
+                showAuth();
+            }
+        } catch (e) {
+            showAuth();
+        }
+
+        // الاستماع لتغيرات حالة الدخول تلقائياً
+        db.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                showApp();
+            } else {
+                showAuth();
+            }
+        });
     };
 
+    // 🔑 إدارة الحسابات
+    async function handleLogin() {
+        const email = document.getElementById('auth-email').value.trim();
+        const password = document.getElementById('auth-password').value;
+        if (!email || !password) return alert("يرجى إدخال البريد وكلمة المرور!");
+
+        const { error } = await db.auth.signInWithPassword({ email, password });
+        if (error) alert("خطأ في تسجيل الدخول: " + error.message);
+    }
+
+    async function handleSignUp() {
+        const email = document.getElementById('auth-email').value.trim();
+        const password = document.getElementById('auth-password').value;
+        if (!email || !password) return alert("يرجى إدخال البريد وكلمة المرور!");
+
+        const { error } = await db.auth.signUp({ email, password });
+        if (error) {
+            alert("خطأ في إنشاء الحساب: " + error.message);
+        } else {
+            alert("تم إنشاء الحساب بنجاح!");
+        }
+    }
+
+    async function handleLogout() {
+        await db.auth.signOut();
+    }
+
+    function showApp() {
+        document.getElementById('auth-container').style.display = 'none';
+        document.getElementById('main-app').style.display = 'block';
+        document.getElementById('logout-btn').style.display = 'block';
+        loadCategories();
+        loadRecipes();
+    }
+
+    function showAuth() {
+        document.getElementById('auth-container').style.display = 'flex';
+        document.getElementById('main-app').style.display = 'none';
+        document.getElementById('logout-btn').style.display = 'none';
+    }
+
+    // 🌿 إدارة الأقسام والوصفات
     async function loadCategories() {
-        const { data, error } = await supabase.from('categories').select('*').order('id', { ascending: true });
+        const { data, error } = await db.from('categories').select('*').order('id', { ascending: true });
         if (!error && data) {
             customCategories = data;
         }
@@ -332,9 +424,9 @@
         const name = document.getElementById('new-cat-name').value.trim();
         if (!name) return alert("يرجى كتابة اسم القسم!");
 
-        const { error } = await supabase.from('categories').insert([{ name }]);
+        const { error } = await db.from('categories').insert([{ name }]);
         if (error) {
-            alert("خطأ أثناء حفظ القسم: " + error.message);
+            alert("حدث خطأ أثناء حفظ القسم: " + error.message);
         } else {
             closeModal('cat-modal');
             document.getElementById('new-cat-name').value = '';
@@ -345,7 +437,7 @@
     async function deleteCategory(event, catId, catName) {
         event.stopPropagation();
         if (confirm(`هل أنت تأكد من حذف قسم "${catName}"؟`)) {
-            const { error } = await supabase.from('categories').delete().eq('id', catId);
+            const { error } = await db.from('categories').delete().eq('id', catId);
             if (!error) {
                 if (currentCategory === catName) currentCategory = 'all';
                 loadCategories();
@@ -368,9 +460,7 @@
         const fileInput = document.getElementById('recipe-img-file');
         const saveBtn = document.getElementById('save-recipe-btn');
 
-        if (!cat || !title || !ingredients) {
-            return alert("يرجى اختيار القسم، وكتابة العنوان والمكونات!");
-        }
+        if (!cat || !title || !ingredients) return alert("يرجى اختيار القسم، وكتابة العنوان والمكونات!");
 
         saveBtn.innerText = "جاري الحفظ والرفع...";
         saveBtn.disabled = true;
@@ -382,7 +472,7 @@
             const fileExt = file.name.split('.').pop();
             const fileName = `${Date.now()}.${fileExt}`;
 
-            const { data: uploadData, error: uploadError } = await supabase.storage
+            const { data: uploadData, error: uploadError } = await db.storage
                 .from('herb-images')
                 .upload(fileName, file);
 
@@ -393,14 +483,14 @@
                 return;
             }
 
-            const { data: publicUrlData } = supabase.storage
+            const { data: publicUrlData } = db.storage
                 .from('herb-images')
                 .getPublicUrl(fileName);
 
             imageUrl = publicUrlData.publicUrl;
         }
 
-        const { error } = await supabase.from('recipes').insert([{
+        const { error } = await db.from('recipes').insert([{
             category: cat,
             title: title,
             ingredients: ingredients,
@@ -427,7 +517,7 @@
     }
 
     async function loadRecipes() {
-        const { data, error } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
+        const { data, error } = await db.from('recipes').select('*').order('created_at', { ascending: false });
         if (!error && data) {
             recipes = data;
             renderRecipes();
@@ -479,7 +569,7 @@
 
     async function deleteRecipe(id, title) {
         if (confirm(`هل أنت تأكد من حذف وصفة "${title}"؟`)) {
-            const { error } = await supabase.from('recipes').delete().eq('id', id);
+            const { error } = await db.from('recipes').delete().eq('id', id);
             if (!error) loadRecipes();
         }
     }
