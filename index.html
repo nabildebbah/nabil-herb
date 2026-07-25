@@ -284,7 +284,7 @@
     // 🔑 انسخ الـ Publishable key وضعه هنا مكان العبارة:
     const SUPABASE_KEY = "sb_publishable_k8xnF-GQBn7tahacLpY51Q_dEmxCrJ9";
 
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let currentCategory = 'all';
     const defaultCategories = ['العناية الشخصية', 'أمراض المعدة', 'التوابل والزيوت'];
