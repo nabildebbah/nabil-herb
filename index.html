@@ -115,7 +115,7 @@
         #auth-container {
             display: flex;
             flex-direction: column;
-            padding: 20px;
+            padding: 25px 20px;
             margin-top: 30px;
             background: white;
             border-radius: 16px;
@@ -255,12 +255,16 @@
     <div class="content">
         <!-- 🔑 واجهة تسجيل الدخول -->
         <div id="auth-container">
-            <h3 style="color: var(--primary-green); margin-top:0; text-align:center;">تسجيل الدخول / حساب جديد</h3>
-            <p style="font-size: 12px; color: #666; margin-bottom: 15px; text-align:center;">ادخل بريدك وكلمة السر لإدارة المذكرة</p>
+            <h3 style="color: var(--primary-green); margin-top:0; text-align:center;">مرحباً بك 🌿</h3>
+            <p style="font-size: 12px; color: #666; margin-bottom: 15px; text-align:center;">يرجى أدخال بيانات الحساب للدخول</p>
             <input type="email" id="auth-email" placeholder="البريد الإلكتروني">
-            <input type="password" id="auth-password" placeholder="كلمة المرور">
-            <button class="btn-main" onclick="handleLogin()">تسجيل الدخول</button>
-            <button class="btn-secondary" onclick="handleSignUp()" style="width: 100%; margin-top: 8px;">إنشاء حساب جديد</button>
+            <input type="password" id="auth-password" placeholder="كلمة المرور (6 أحرف على الأقل)">
+            
+            <button class="btn-main" id="btn-login-action" onclick="handleLogin()">تسجيل الدخول</button>
+            <div style="margin-top: 12px; text-align: center;">
+                <span style="font-size: 12px; color: #777;">ليس لديك حساب؟ </span>
+                <button onclick="handleSignUp()" style="background:none; border:none; color:var(--primary-green); font-weight:bold; cursor:pointer; text-decoration:underline;">أنشئ حساباً جديداً الآن</button>
+            </div>
         </div>
 
         <!-- 🌿 واجهة التطبيق الرئيسي -->
@@ -323,54 +327,47 @@
     let customCategories = [];
     let recipes = [];
 
-    // التحقق فور تحميل الصفحة
     window.onload = async () => {
-        try {
-            const { data: { session } } = await db.auth.getSession();
-            if (session) {
-                showApp();
-            } else {
-                showAuth();
-            }
-        } catch (e) {
+        const { data: { session } } = await db.auth.getSession();
+        if (session) {
+            showApp();
+        } else {
             showAuth();
         }
-
-        // الاستماع لتغيرات حالة الدخول تلقائياً
-        db.auth.onAuthStateChange((event, session) => {
-            if (session) {
-                showApp();
-            } else {
-                showAuth();
-            }
-        });
     };
 
-    // 🔑 إدارة الحسابات
+    // 🔑 تسجيل الدخول
     async function handleLogin() {
         const email = document.getElementById('auth-email').value.trim();
         const password = document.getElementById('auth-password').value;
         if (!email || !password) return alert("يرجى إدخال البريد وكلمة المرور!");
 
         const { error } = await db.auth.signInWithPassword({ email, password });
-        if (error) alert("خطأ في تسجيل الدخول: " + error.message);
+        if (error) {
+            alert("فشل تسجيل الدخول: " + error.message);
+        } else {
+            showApp();
+        }
     }
 
+    // 🔑 إنشاء حساب جديد
     async function handleSignUp() {
         const email = document.getElementById('auth-email').value.trim();
         const password = document.getElementById('auth-password').value;
-        if (!email || !password) return alert("يرجى إدخال البريد وكلمة المرور!");
+        if (!email || !password) return alert("يرجى أدخال البريد وكلمة المرور أولاً!");
 
         const { error } = await db.auth.signUp({ email, password });
         if (error) {
-            alert("خطأ في إنشاء الحساب: " + error.message);
+            alert("لم نتمكن من إنشاء الحساب: " + error.message);
         } else {
-            alert("تم إنشاء الحساب بنجاح!");
+            alert("تم إنشاء الحساب بنجاح! جاري تسجيل دخولك...");
+            handleLogin(); // دخول تلقائي
         }
     }
 
     async function handleLogout() {
         await db.auth.signOut();
+        showAuth();
     }
 
     function showApp() {
