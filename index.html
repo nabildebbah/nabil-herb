@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مذكرة الوصفات والعقدات الطبية</title>
+    
+    <!-- Firebase Compatibility SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #fcfbf7;
+            --card-bg: #ffffff;
+            --primary-green: #2d5a27;
+            --light-green: #e8f0e6;
+            --earth-brown: #6e473b;
+            --accent-gold: #c29b38;
+            --text-color: #2b2b2b;
+            --text-muted: #666666;
+            --border-color: #e2ded4;
+        }
+
+        * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 600px;
+            min-height: 100vh;
+            background: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+        }
+
+        /* 🔒 شاشة تسجيل الدخول */
+        #auth-screen {
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(180deg, var(--light-green) 0%, var(--bg-color) 100%);
+        }
+
+        .auth-card {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(45, 90, 39, 0.08);
+            width: 100%;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .auth-card h2 { color: var(--primary-green); margin-bottom: 5px; }
+
+        /* 📱 الشاشة الرئيسية */
+        #main-app { display: none; flex-direction: column; flex: 1; }
+
+        header {
+            background: var(--primary-green);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header h1 { font-size: 18px; margin: 0; }
+        .logout-btn { background: transparent; color: #ffcdd2; border: none; font-size: 13px; cursor: pointer; }
+
+        .content { padding: 15px; flex: 1; }
+
+        /* العناصر المدخلة والأزرار */
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--card-bg);
+            font-size: 14px;
+            color: var(--text-color);
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary-green);
+        }
+
+        button.btn-main {
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+
+        button.btn-secondary {
+            background: var(--earth-brown);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        /* 🔍 البحث وسجل البحث */
+        .search-container { position: relative; margin-bottom: 15px; }
+        .search-history {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 5px 0;
+            margin-top: 5px;
+        }
+        .history-tag {
+            background: var(--light-green);
+            color: var(--primary-green);
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            border: 1px solid var(--border-color);
+        }
+
+        /* 🏷️ شريط الأقسام */
+        .categories-bar {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .cat-chip {
+            padding: 8px 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 13px;
+            color: var(--earth-brown);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .cat-chip.active {
+            background: var(--earth-brown);
+            color: white;
+            border-color: var(--earth-brown);
+        }
+
+        /* 📖 بطاقة الوصفة */
+        .recipe-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            border-right: 5px solid var(--primary-green);
+        }
+
+        .recipe-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .recipe-title { margin: 0; color: var(--primary-green); font-size: 17px; }
+        .recipe-cat-badge {
+            background: var(--light-green);
+            color: var(--primary-green);
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+
+        .recipe-img {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .recipe-body { font-size: 13px; color: var(--text-color); margin-top: 8px; line-height: 1.5; }
+        .recipe-notes { background: #fff8e1; border-right: 3px solid var(--accent-gold); padding: 8px; font-size: 12px; margin-top: 8px; border-radius: 4px; }
+
+        /* 🪟 النافذة المنبثقة (Modal) */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+        }
+
+        .modal-content {
+            background: var(--bg-color);
+            border-radius: 16px;
+            padding: 20px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .actions-row { display: flex; gap: 10px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- 1️⃣ شاشة تسجيل الدخول -->
+    <div id="auth-screen">
+        <div class="auth-card">
+            <h2>🌿 تسجيل الدخول</h2>
+            <p style="font-size: 12px; color: var(--text-muted);">خزن وعقدات الأعشاب الطبية</p>
+            <input type="email" id="login-email" placeholder="البريد الإلكتروني">
+            <input type="password" id="login-pass" placeholder="كلمة المرور">
+            <button class="btn-main" onclick="handleLogin()">دخول المنصة</button>
+        </div>
+    </div>
+
+    <!-- 2️⃣ التطبيق الرئيسي -->
+    <div id="main-app">
+        <header>
+            <h1>🌿 دفتر الوصفات والعقدات</h1>
+            <button class="logout-btn" onclick="handleLogout()">خروج</button>
+        </header>
+
+        <div class="content">
+            <!-- البحث وسجل البحث -->
+            <div class="search-container">
+                <input type="text" id="search-bar" placeholder="🔍 ابحث عن عشبة، عقدة، أو مكون..." oninput="onSearchInput()">
+                <div class="search-history" id="search-history-list"></div>
+            </div>
+
+            <!-- أزرار الإضافة -->
+            <div class="actions-row">
+                <button class="btn-main" onclick="openModal('recipe-modal')">➕ إضافة وصفة</button>
+                <button class="btn-secondary" onclick="openModal('cat-modal')">🏷️ إضافة قسم</button>
+            </div>
+
+            <!-- تصفية الأقسام -->
+            <div class="categories-bar" id="categories-bar"></div>
+
+            <!-- قائمة الوصفات -->
+            <div id="recipes-container"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- 🪟 Modal: إضافة وصفة -->
+<div id="recipe-modal" class="modal">
+    <div class="modal-content">
+        <h3 style="color: var(--primary-green); margin-top:0;">إضافة عقدة/وصفة جديدة</h3>
+        <select id="recipe-cat-select"></select>
+        <input type="text" id="recipe-title" placeholder="اسم الوصفة / العقدة">
+        <textarea id="recipe-ingredients" rows="3" placeholder="المكونات والمقادير (مثال: 50غ يانسون، 20غ بابونج)..."></textarea>
+        <textarea id="recipe-usage" rows="2" placeholder="طريقة التحضير والاستعمال..."></textarea>
+        <textarea id="recipe-notes" rows="2" placeholder="تحذيرات أو موانع الاستعمال (اختياري)..."></textarea>
+        <label style="font-size:12px; color:var(--text-muted);">رفع صورة الوصفة (اختياري):</label>
+        <input type="file" id="recipe-img-file" accept="image/*">
+        
+        <button class="btn-main" id="save-recipe-btn" onclick="saveRecipe()">حفظ الوصفة</button>
+        <button class="btn-secondary" onclick="closeModal('recipe-modal')" style="width:100%; margin-top:5px; background:#888;">إلغاء</button>
+    </div>
+</div>
+
+<!-- 🪟 Modal: إضافة قسم -->
+<div id="cat-modal" class="modal">
+    <div class="modal-content">
+        <h3 style="color: var(--earth-brown); margin-top:0;">إضافة قسم جديد</h3>
+        <input type="text" id="new-cat-name" placeholder="اسم القسم (مثال: أمراض القولون، زيوت)...">
+        <button class="btn-main" onclick="saveCategory()" style="background: var(--earth-brown);">حفظ القسم</button>
+        <button class="btn-secondary" onclick="closeModal('cat-modal')" style="width:100%; margin-top:5px; background:#888;">إلغاء</button>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // ⚙️ إعدادات FIREBASE CONFIG (ضع كودك هنا)
+    // ==========================================
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    // المتغيرات العامة
+    let currentCategory = 'all';
+    let searchHistory = JSON.parse(localStorage.getItem('herb_search_history')) || [];
+    let categories = [];
+    let recipes = [];
+
+    // 1️⃣ إدارة تسجيل الدخول الحقيقي
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'flex';
+            loadCategories();
+            loadRecipes();
+            renderSearchHistory();
+        } else {
+            document.getElementById('auth-screen').style.display = 'flex';
+            document.getElementById('main-app').style.display = 'none';
+        }
+    });
+
+    function handleLogin() {
+        const email = document.getElementById('login-email').value;
+        const pass = document.getElementById('login-pass').value;
+        auth.signInWithEmailAndPassword(email, pass).catch(err => alert(" خطأ في الدخول: " + err.message));
+    }
+
+    function handleLogout() { auth.signOut(); }
+
+    // 2️⃣ تحميل الأقسام من Firestore
+    function loadCategories() {
+        db.collection('categories').onSnapshot(snapshot => {
+            categories = snapshot.docs.map(doc => doc.data().name);
+            if (categories.length === 0) categories = ['العناية الشخصية', 'أمراض المعدة', 'التوابل والزيوت'];
+            renderCategories();
+        });
+    }
+
+    function renderCategories() {
+        const bar = document.getElementById('categories-bar');
+        const select = document.getElementById('recipe-cat-select');
+        
+        bar.innerHTML = `<div class="cat-chip ${currentCategory === 'all' ? 'active' : ''}" onclick="filterCat('all')">الكل</div>`;
+        select.innerHTML = '<option value="">اختر القسم...</option>';
+
+        categories.forEach(cat => {
+            bar.innerHTML += `<div class="cat-chip ${currentCategory === cat ? 'active' : ''}" onclick="filterCat('${cat}')">${cat}</div>`;
+            select.innerHTML += `<option value="${cat}">${cat}</option>`;
+        });
+    }
+
+    function saveCategory() {
+        const name = document.getElementById('new-cat-name').value.trim();
+        if (name) {
+            db.collection('categories').add({ name: name });
+            closeModal('cat-modal');
+            document.getElementById('new-cat-name').value = '';
+        }
+    }
+
+    function filterCat(cat) {
+        currentCategory = cat;
+        renderCategories();
+        renderRecipes();
+    }
+
+    // 3️⃣ تحميل والتقاط الوصفات
+    function loadRecipes() {
+        db.collection('recipes').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+            recipes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            renderRecipes();
+        });
+    }
+
+    async function saveRecipe() {
+        const cat = document.getElementById('recipe-cat-select').value;
+        const title = document.getElementById('recipe-title').value.trim();
+        const ingredients = document.getElementById('recipe-ingredients').value.trim();
+        const usage = document.getElementById('recipe-usage').value.trim();
+        const notes = document.getElementById('recipe-notes').value.trim();
+        const fileInput = document.getElementById('recipe-img-file');
+        const saveBtn = document.getElementById('save-recipe-btn');
+
+        if (!cat || !title || !ingredients) return alert("يرجى ملء كافة الحقول الأساسية!");
+
+        saveBtn.innerText = "جاري الحفظ والرفع...";
+        saveBtn.disabled = true;
+
+        let imageUrl = "";
+
+        // رفع الصورة إلى Firebase Storage إن وجدت
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const fileRef = storage.ref(`recipes/${Date.now()}_${file.name}`);
+            await fileRef.put(file);
+            imageUrl = await fileRef.getDownloadURL();
+        }
+
+        await db.collection('recipes').add({
+            category: cat,
+            title: title,
+            ingredients: ingredients,
+            usage: usage,
+            notes: notes,
+            imageUrl: imageUrl,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        saveBtn.innerText = "حفظ الوصفة";
+        saveBtn.disabled = false;
+
+        closeModal('recipe-modal');
+        // تفريغ الحقول
+        document.getElementById('recipe-title').value = '';
+        document.getElementById('recipe-ingredients').value = '';
+        document.getElementById('recipe-usage').value = '';
+        document.getElementById('recipe-notes').value = '';
+        fileInput.value = '';
+    }
+
+    function deleteRecipe(id) {
+        if (confirm("هل أنت تأكد من حذف هذه الوصفة؟")) {
+            db.collection('recipes').doc(id).delete();
+        }
+    }
+
+    // 4️⃣ عرض الوصفات والبحث المتقدم
+    function renderRecipes() {
+        const container = document.getElementById('recipes-container');
+        const query = document.getElementById('search-bar').value.toLowerCase().trim();
+
+        container.innerHTML = '';
+
+        const filtered = recipes.filter(r => {
+            const matchCat = (currentCategory === 'all' || r.category === currentCategory);
+            const matchSearch = r.title.toLowerCase().includes(query) ||
+                                r.ingredients.toLowerCase().includes(query) ||
+                                (r.usage && r.usage.toLowerCase().includes(query));
+            return matchCat && matchSearch;
+        });
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<p style="text-align:center; color:#888; margin-top:30px;">لا توجد وصفات مطابقة.</p>';
+            return;
+        }
+
+        filtered.forEach(r => {
+            container.innerHTML += `
+                <div class="recipe-card">
+                    <div class="recipe-header">
+                        <h3 class="recipe-title">${r.title}</h3>
+                        <span class="recipe-cat-badge">${r.category}</span>
+                    </div>
+                    ${r.imageUrl ? `<img src="${r.imageUrl}" class="recipe-img">` : ''}
+                    <div class="recipe-body">
+                        <strong>🌿 المكونات:</strong> ${r.ingredients}
+                    </div>
+                    ${r.usage ? `<div class="recipe-body"><strong>📜 التحضير:</strong> ${r.usage}</div>` : ''}
+                    ${r.notes ? `<div class="recipe-notes">⚠️ <strong>ملاحظات:</strong> ${r.notes}</div>` : ''}
+                    <button onclick="deleteRecipe('${r.id}')" style="background:#ffebeb; color:#d32f2f; border:none; padding:5px 10px; border-radius:6px; font-size:11px; margin-top:10px; cursor:pointer;">حذف</button>
+                </div>
+            `;
+        });
+    }
+
+    // 5️⃣ إدارة سجل البحث
+    function onSearchInput() {
+        const val = document.getElementById('search-bar').value.trim();
+        renderRecipes();
+        if (val.length > 3) {
+            clearTimeout(window.searchTimer);
+            window.searchTimer = setTimeout(() => {
+                if (!searchHistory.includes(val)) {
+                    searchHistory.unshift(val);
+                    if (searchHistory.length > 5) searchHistory.pop();
+                    localStorage.setItem('herb_search_history', JSON.stringify(searchHistory));
+                    renderSearchHistory();
+                }
+            }, 1500);
+        }
+    }
+
+    function renderSearchHistory() {
+        const container = document.getElementById('search-history-list');
+        container.innerHTML = '';
+        searchHistory.forEach(term => {
+            container.innerHTML += `<span class="history-tag" onclick="applyHistorySearch('${term}')">${term}</span>`;
+        });
+    }
+
+    function applyHistorySearch(term) {
+        document.getElementById('search-bar').value = term;
+        renderRecipes();
+    }
+
+    // 🪟 فتح وإغلاق النوافذ
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+</script>
+
+</body>
+</html>
