@@ -9,7 +9,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
     <style>
         :root {
@@ -29,7 +28,6 @@
         * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
 
         body {
-            /* خلفية مميزة تتخلص من اللون الأبيض الجاف */
             background: var(--bg-gradient);
             color: var(--text-color);
             margin: 0;
@@ -153,7 +151,7 @@
             border: 1px solid var(--border-color);
         }
 
-        /* 🏷️ شريط الأقسام مع دعم زر الحذف */
+        /* 🏷️ شريط الأقسام */
         .categories-bar {
             display: flex;
             gap: 8px;
@@ -321,8 +319,20 @@
         <textarea id="recipe-ingredients" rows="3" placeholder="المكونات والمقادير..."></textarea>
         <textarea id="recipe-usage" rows="2" placeholder="طريقة التحضير والاستعمال..."></textarea>
         <textarea id="recipe-notes" rows="2" placeholder="تحذيرات أو موانع الاستعمال (اختياري)..."></textarea>
-        <label style="font-size:12px; color:var(--text-muted);">رفع صورة الوصفة (اختياري):</label>
-        <input type="file" id="recipe-img-file" accept="image/*">
+        
+        <!-- 🖼️ قسم البحث السريع عن الصور -->
+        <div style="background: var(--light-green); padding: 10px; border-radius: 10px; margin: 10px 0;">
+            <label style="font-size: 12px; font-weight: bold; color: var(--primary-green);">🔍 جلب صورة العشبة تلقائياً:</label>
+            <div style="display: flex; gap: 5px; margin-top: 5px;">
+                <input type="text" id="image-search-input" placeholder="اكتب اسم العشبة (مثل: mint, chamomile)..." style="margin:0;">
+                <button type="button" onclick="searchHerbImages()" style="background: var(--primary-green); color: white; border: none; padding: 0 15px; border-radius: 8px; cursor: pointer; white-space: nowrap;">بحث</button>
+            </div>
+            
+            <div id="image-results-grid" style="display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; padding: 5px 0;"></div>
+        </div>
+
+        <!-- حقل الرابط المخفي -->
+        <input type="hidden" id="recipe-img-url">
         
         <button class="btn-main" id="save-recipe-btn" onclick="saveRecipe()">حفظ الوصفة</button>
         <button class="btn-secondary" onclick="closeModal('recipe-modal')" style="width:100%; margin-top:5px; background:#888;">إلغاء</button>
@@ -341,7 +351,7 @@
 
 <script>
     // ==========================================
-    // ⚙️ FIREBASE CONFIG (ضع كودك هنا)
+    // ⚙️ FIREBASE CONFIG (ضع مفاتيحك الخاصة هنا)
     // ==========================================
     const firebaseConfig = {
   apiKey: "AIzaSyCCusLdJr7lAbOXcK0eKEjiWnssV1_WEho",
@@ -357,12 +367,10 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
-    const storage = firebase.storage();
 
     let currentCategory = 'all';
     let searchHistory = JSON.parse(localStorage.getItem('herb_search_history')) || [];
     
-    // الأقسام الافتراضية ثابتة ولا تُحذف بالـ JS
     const defaultCategories = ['العناية الشخصية', 'أمراض المعدة', 'التوابل والزيوت'];
     let customCategories = []; 
     let recipes = [];
@@ -391,7 +399,7 @@
 
     function handleLogout() { auth.signOut(); }
 
-    // 2️⃣ تحميل الأقسام (تجمع بين الافتراضية والمضافة من Firestore)
+    // 2️⃣ إدارة الأقسام
     function loadCategories() {
         db.collection('categories').onSnapshot(snapshot => {
             customCategories = snapshot.docs.map(doc => ({
@@ -409,13 +417,11 @@
         bar.innerHTML = `<div class="cat-chip ${currentCategory === 'all' ? 'active' : ''}" onclick="filterCat('all')">الكل</div>`;
         select.innerHTML = '<option value="">اختر القسم...</option>';
 
-        // عرض الأقسام الافتراضية
         defaultCategories.forEach(cat => {
             bar.innerHTML += `<div class="cat-chip ${currentCategory === cat ? 'active' : ''}" onclick="filterCat('${cat}')">${cat}</div>`;
             select.innerHTML += `<option value="${cat}">${cat}</option>`;
         });
 
-        // عرض الأقسام المخصصة مع زر الحذف 🗑️
         customCategories.forEach(catObj => {
             const isActive = currentCategory === catObj.name ? 'active' : '';
             bar.innerHTML += `
@@ -441,9 +447,8 @@
         }).catch(err => alert("خطأ أثناء حفظ القسم: " + err.message));
     }
 
-    // 🗑️ حذف القسم المخصص
     function deleteCategory(event, catId, catName) {
-        event.stopPropagation(); // منع ضغطة التصفية
+        event.stopPropagation();
         if (confirm(`هل أنت تأكد من حذف قسم "${catName}"؟`)) {
             db.collection('categories').doc(catId).delete().then(() => {
                 if (currentCategory === catName) currentCategory = 'all';
@@ -457,7 +462,34 @@
         renderRecipes();
     }
 
-    // 3️⃣ إدارة الوصفات (حفظ وحذف)
+    // 3️⃣ البحث السريع عن الصور
+    async function searchHerbImages() {
+        const query = document.getElementById('image-search-input').value.trim();
+        const grid = document.getElementById('image-results-grid');
+        
+        if (!query) return alert("اكتب اسم العشبة للبحث عن صورتها!");
+
+        grid.innerHTML = '<span style="font-size:12px; color:#666;">جاري جلب الصور...</span>';
+
+        grid.innerHTML = '';
+        for (let i = 1; i <= 4; i++) {
+            const imgUrl = `https://source.unsplash.com/featured/?${encodeURIComponent(query)},herb,plant&sig=${i}`;
+            
+            const imgEl = document.createElement('img');
+            imgEl.src = imgUrl;
+            imgEl.style.cssText = 'width: 70px; height: 70px; object-fit: cover; border-radius: 8px; cursor: pointer; border: 2px solid transparent;';
+            
+            imgEl.onclick = function() {
+                Array.from(grid.children).forEach(child => child.style.borderColor = 'transparent');
+                this.style.borderColor = 'var(--primary-green)';
+                document.getElementById('recipe-img-url').value = this.src;
+            };
+            
+            grid.appendChild(imgEl);
+        }
+    }
+
+    // 4️⃣ إدارة الوصفات
     function loadRecipes() {
         db.collection('recipes').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
             recipes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -465,77 +497,58 @@
         });
     }
 
-async function saveRecipe() {
-    const cat = document.getElementById('recipe-cat-select').value;
-    const title = document.getElementById('recipe-title').value.trim();
-    const ingredients = document.getElementById('recipe-ingredients').value.trim();
-    const usage = document.getElementById('recipe-usage').value.trim();
-    const notes = document.getElementById('recipe-notes').value.trim();
-    const fileInput = document.getElementById('recipe-img-file');
-    const saveBtn = document.getElementById('save-recipe-btn');
+    async function saveRecipe() {
+        const cat = document.getElementById('recipe-cat-select').value;
+        const title = document.getElementById('recipe-title').value.trim();
+        const ingredients = document.getElementById('recipe-ingredients').value.trim();
+        const usage = document.getElementById('recipe-usage').value.trim();
+        const notes = document.getElementById('recipe-notes').value.trim();
+        const imageUrl = document.getElementById('recipe-img-url').value.trim();
+        const saveBtn = document.getElementById('save-recipe-btn');
 
-    if (!cat || !title || !ingredients) {
-        return alert("يرجى اختيار القسم، وكتابة العنوان والمكونات على الأقل!");
-    }
-
-    saveBtn.innerText = "جاري الحفظ...";
-    saveBtn.disabled = true;
-
-    let imageUrl = "";
-
-    try {
-        // إذا قام المستخدم باختيار صورة، نرفعها إلى Storage
-        if (fileInput.files && fileInput.files[0]) {
-            saveBtn.innerText = "جاري رفع الصورة...";
-            const file = fileInput.files[0];
-            const fileRef = storage.ref(`recipes/${Date.now()}_${file.name}`);
-            
-            // رفع الملف
-            const snapshot = await fileRef.put(file);
-            // الحصول على رابط الصورة
-            imageUrl = await snapshot.ref.getDownloadURL();
+        if (!cat || !title || !ingredients) {
+            return alert("يرجى اختيار القسم، وكتابة العنوان والمكونات على الأقل!");
         }
 
-        saveBtn.innerText = "جاري حفظ البيانات...";
+        saveBtn.innerText = "جاري الحفظ...";
+        saveBtn.disabled = true;
 
-        // حفظ البيانات في Firestore
-        await db.collection('recipes').add({
-            category: cat,
-            title: title,
-            ingredients: ingredients,
-            usage: usage,
-            notes: notes,
-            imageUrl: imageUrl,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        try {
+            await db.collection('recipes').add({
+                category: cat,
+                title: title,
+                ingredients: ingredients,
+                usage: usage,
+                notes: notes,
+                imageUrl: imageUrl,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
 
-        alert("تم حفظ الوصفة بنجاح! 🌿");
+            alert("تم حفظ الوصفة بنجاح! 🌿");
 
-        // إغلاق وتفريغ النموذج
-        closeModal('recipe-modal');
-        document.getElementById('recipe-title').value = '';
-        document.getElementById('recipe-ingredients').value = '';
-        document.getElementById('recipe-usage').value = '';
-        document.getElementById('recipe-notes').value = '';
-        fileInput.value = '';
+            closeModal('recipe-modal');
+            document.getElementById('recipe-title').value = '';
+            document.getElementById('recipe-ingredients').value = '';
+            document.getElementById('recipe-usage').value = '';
+            document.getElementById('recipe-notes').value = '';
+            document.getElementById('recipe-img-url').value = '';
+            document.getElementById('image-results-grid').innerHTML = '';
 
-    } catch (error) {
-        console.error("خطأ أثناء الحفظ:", error);
-        alert("حدث خطأ أثناء الحفظ: " + error.message);
-    } finally {
-        saveBtn.innerText = "حفظ الوصفة";
-        saveBtn.disabled = false;
+        } catch (error) {
+            console.error("خطأ أثناء الحفظ:", error);
+            alert("حدث خطأ أثناء الحفظ: " + error.message);
+        } finally {
+            saveBtn.innerText = "حفظ الوصفة";
+            saveBtn.disabled = false;
+        }
     }
-}
 
-    // 🗑️ حذف الوصفة
     function deleteRecipe(id, title) {
         if (confirm(`هل أنت تأكد من حذف وصفة "${title}"؟`)) {
             db.collection('recipes').doc(id).delete().catch(err => alert("خطأ في الحذف: " + err.message));
         }
     }
 
-    // 4️⃣ عرض الوصفات
     function renderRecipes() {
         const container = document.getElementById('recipes-container');
         const query = document.getElementById('search-bar').value.toLowerCase().trim();
